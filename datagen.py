@@ -1,7 +1,8 @@
 import random
 
 FILE_NAME = "data.test"
-NUM_ENTRIES = 262144
+#NUM_ENTRIES = 262144
+NUM_ENTRIES = 1024
 LARGEST_NUM = 200
 
 with open(FILE_NAME, mode="w") as a_file:

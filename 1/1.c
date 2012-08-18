@@ -5,6 +5,7 @@
 #include <math.h>
 #include <omp.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 // Number of threads
 #define NUM_THREADS 32
@@ -19,8 +20,15 @@
 #define NSIZE 7
 #define NMAX 262144
 
+#define STACK_SIZE_MB 32
+
+// Prints results to standart output
+// #define OUTPUT
+
+//Prints debug data
+//#define DEBUG
+
 int Ns[NSIZE] = {4096, 8192, 16384, 32768, 65536, 131072, 262144};  
-int length; 
 
 typedef struct __ThreadArg {
 	int id;
@@ -38,20 +46,29 @@ int A[NMAX];
 // Prefix/suffix subset
 int B[NMAX];
 
-//test file
-FILE *input, *output;
+//data file
+FILE *input;
 
-/* Copies source data to target arrays */
+//input length
+int length; 
+
+/*
+ * Utility functions
+ */
+
+/* Copies source data to target array for processing */
 void init(int n){
-	int i, chunk, num_threads;
-	
-	chunk = CHUNK_SIZE;
-	num_threads = NUM_THREADS;
+	int i;
 
-	#pragma omp parallel for \
-	 shared (A, B, n, chunk, num_threads) private (i) \
-	 schedule (static, chunk) \
-	 num_threads (num_threads)
+	//int chunk, num_threads;
+	
+	// chunk = CHUNK_SIZE;
+	// num_threads = NUM_THREADS;
+
+	// #pragma omp parallel for \
+	//  shared (A, B, n, chunk, num_threads) private (i) \
+	//  schedule (static, chunk) \
+	//  num_threads (num_threads)
 
 	for (i = 0; i < n; i++){
 		B[i] = A[i];
@@ -69,155 +86,6 @@ void print_array(int* array, int length){
 	printf("\n");
 }
 
-/* Sequential recursive algorithm to solve prefix/suffix minima problem for given array 
- * Enhanced with OpenMP pragmas to share the worlkload
- * source - source array,
- * length - array length,
- * prefix = 1 for prefix minima, 0 for suffix minima
- */
-void scan_seq(int* source, int length, int prefix){
-	int i, chunk, num_threads;
-	int Z[NMAX];
-
-	if (1 == length){
-		return;
-	}
-
-	chunk = CHUNK_SIZE;
-	num_threads = NUM_THREADS;
-
-	printf("Source: (%d) ", length);
-	print_array(source, length);
-
-	//computing sums of consequitive pairs of items
-	#pragma omp parallel for \
-	 shared (Z, source, chunk, num_threads) private (i) \
-	 schedule (static, chunk) \
-	 num_threads (num_threads)
-
-	for (i = 0; i < length; i++){
-		if (0 == i % 2){
-			Z[i/2] = min(source[i], source[i+1]);
-		}
-	}
-
-	//recursively computes prefix/suffix sums of obtained sequence
-	scan_seq(Z, length/2, prefix);
-
-	printf("Z done: ");
-	print_array(Z, length/2);
-
-	//filling in the odd values from the obtained array
-	if (1 == prefix){
-		//prefix minima
-		#pragma omp parallel for \
-	 	 shared (Z, source, chunk, num_threads) private (i) \
-	 	 schedule (static, chunk) \
-	 	 num_threads (num_threads)
-
-		for (i = 1; i < length; i++){
-			if (1 == i % 2){
-				source[i] = Z[i/2];
-			} else {
-				source[i] = min(source[i],Z[i/2 - 1]);
-			}
-		}
-
-	} else if (0 == prefix){
-		//suffix minima
-		#pragma omp parallel for \
-	 	 shared (Z, source, chunk, num_threads) private (i) \
-	 	 schedule (static, chunk) \
-	 	 num_threads (num_threads)
-
-		for (i = length - 2; i >= 0; i--){
-			if (0 == i % 2){
-				source[i] = Z[i/2];
-			} else {
-				source[i] = min(source[i],Z[i/2 + 1]);
-			}
-		}
-
-	} else {
-		//unrecognised prefix value
-		exit(1);
-	}
-	
-}
-
-/* Parallel recursive algorithm to solve prefix/suffix minima problem for given array 
- * Pthreads are used for parallelization
- * source - source array,
- * length - array length,
- * prefix = 1 for prefix minima, 0 for suffix minima
- */
-void scan_par(int* source, int length, int prefix){	
-	int i;
-	int Z[NMAX];
-
-	if (1 == length){
-		return;
-	}
-
-	printf("Source: (%d) ", length);
-	print_array(source, length);
-
-	//computing sums of consequitive pairs of items
-	for (i = 0; i < length; i++){
-		if (0 == i % 2){
-			Z[i/2] = min(source[i], source[i+1]);
-		}
-	}
-
-	//recursively computes prefix/suffix sums of obtained sequence
-	scan_par(Z, length/2, prefix);
-
-	printf("Z done: ");
-	print_array(Z, length/2);
-
-	//filling in the odd values from the obtained array
-	if (1 == prefix){
-		//prefix minima
-		for (i = 1; i < length; i++){
-			if (1 == i % 2){
-				source[i] = Z[i/2];
-			} else {
-				source[i] = min(source[i],Z[i/2 - 1]);
-			}
-		}
-	} else if (0 == prefix){
-		//suffix minima
-		for (i = length - 2; i >= 0; i--){
-			if (0 == i % 2){
-				source[i] = Z[i/2];
-			} else {
-				source[i] = min(source[i],Z[i/2 + 1]);
-			}
-		}
-	} else {
-		//unrecognised prefix value
-		exit(1);
-	}
-}
-
-/* Sequential algotithm implementation */
-void seq_function(int n){
-	printf("\n");
-	printf("Sequential algorithm\n");
-
-	scan_seq(B, n, 1);
-
-	printf("Prefix: ");
-	print_array(B, n);
-
-	init(n);
-
-	scan_seq(B, n, 0);
-	printf("Suffix: ");
-	print_array(B, n);
-	
-}
-
 /* Returns minimum of two given integers */
 int min(int a, int b){
 	if (a < b){
@@ -226,29 +94,7 @@ int min(int a, int b){
 	return b;
 }
 
-void* par_function(void* a){
-
-	int *n;
-
-	n = (int *)a;
-
-	printf("\n");
-	printf("Parallel algorithm\n");
-
-	scan_par(B, *n, 1);
-
-	printf("Prefix: ");
-	print_array(B, *n);
-
-	init(*n);
-
-	scan_par(B, *n, 0);
-	printf("Suffix: ");
-	print_array(B, *n);
-
-}
-
-/* Reads a source array from a file into array A */
+/* Reads data from a submitted file into array A */
 void read_file(char* file)
 {
 	int current_num;
@@ -258,7 +104,7 @@ void read_file(char* file)
 
 	if (NULL == input)
 	{
-		printf("Cannot open test file\n");
+		printf("Cannot open data file\n");
 		exit(1);
 	}
 
@@ -266,9 +112,234 @@ void read_file(char* file)
 	while(fscanf(input, "%d ", &current_num) != EOF){
 		A[i++] = current_num;
 	}
+
 	length = i;
 
+	printf("Length: %d\n",length);
 	fclose(input);
+}
+
+/* Increases stack size to the given value in MBytes */
+void set_stack_size(int mb){
+	rlim_t kStackSize = mb * 1024 * 1024;
+	struct rlimit rl;
+    int result;
+	
+	/* Increases stack size*/
+    result = getrlimit(RLIMIT_STACK, &rl);
+    if (result == 0)
+    {
+        if (rl.rlim_cur < kStackSize)
+        {
+            rl.rlim_cur = kStackSize;
+            result = setrlimit(RLIMIT_STACK, &rl);
+            if (result != 0)
+            {
+                fprintf(stderr, "setrlimit returned result = %d\n", result);
+            }
+        }
+    }
+}
+
+/* Sequential recursive algorithm to solve prefix/suffix minima problem for given array 
+ * enhanced with OpenMP pragmas to share the worlkload
+ * source - source array,
+ * len - array length,
+ * prefix = 1 for prefix minima, 0 for suffix minima
+ */
+void scan_seq(int* source, int len, int prefix){
+	int i, chunk, num_threads;
+	int Z[NMAX];
+
+	//exit condition
+	if (1 == len){
+		return;
+	}
+
+	chunk = CHUNK_SIZE;
+	num_threads = NUM_THREADS;
+
+	#ifdef DEBUG
+		printf("Source: (%d) ", len);
+		print_array(source, len);
+	#endif
+
+	//computing sums of consequitive pairs of items
+	#pragma omp parallel for \
+	 shared (Z, source, chunk, num_threads) private (i) \
+	 schedule (static, chunk) \
+	 num_threads (num_threads)
+
+	for (i = 0; i < len; i++){
+		if (0 == i % 2){
+			Z[i/2] = min(source[i], source[i+1]);
+		}
+	}
+
+	//recursively computes prefix/suffix sums of obtained sequence Z
+	scan_seq(Z, len/2, prefix);
+
+	#ifdef DEBUG
+		printf("Z done: ");
+		print_array(Z, len/2);
+	#endif
+
+	//filling in the odd values from the obtained array
+	if (1 == prefix){
+		//prefix minima
+		#pragma omp parallel for \
+	 	 shared (Z, source, chunk, num_threads) private (i) \
+	 	 schedule (static, chunk) \
+	 	 num_threads (num_threads)
+
+		for (i = 1; i < len; i++){
+			if (1 == i % 2){
+				source[i] = Z[i/2];
+			} else {
+				source[i] = min(source[i],Z[i/2 - 1]);
+			}
+		}
+
+	} else if (0 == prefix){
+		//suffix minima
+		#pragma omp parallel for \
+	 	 shared (Z, source, chunk, num_threads) private (i) \
+	 	 schedule (static, chunk) \
+	 	 num_threads (num_threads)
+
+		for (i = len - 2; i >= 0; i--){
+			if (0 == i % 2){
+				source[i] = Z[i/2];
+			} else {
+				source[i] = min(source[i],Z[i/2 + 1]);
+			}
+		}
+
+	} else {
+		//unrecognised prefix value
+		exit(1);
+	}
+}
+
+/* Parallel recursive algorithm to solve prefix/suffix minima problem for given array 
+ * Pthreads are used for parallelization
+ * source - source array,
+ * len - array length,
+ * prefix = 1 for prefix minima, 0 for suffix minima
+ */
+void scan_par(int* source, int len, int prefix){	
+	int i;
+	int Z[NMAX];
+
+	//exit condition
+	if (1 == len){
+		return;
+	}
+
+	#ifdef DEBUG
+		printf("Source: (%d) ", len);
+		print_array(source, len);
+	#endif
+
+	//computing sums of consequitive pairs of items
+	for (i = 0; i < len; i++){
+		if (0 == i % 2){
+			Z[i/2] = min(source[i], source[i+1]);
+		}
+	}
+
+	//recursively computes prefix/suffix sums of obtained sequence Z
+	scan_par(Z, len/2, prefix);
+
+	#ifdef DEBUG
+		printf("Z done: ");
+		print_array(Z, len/2);
+	#endif
+
+	//filling in the odd values from the obtained array
+	if (1 == prefix){
+		//prefix minima
+		for (i = 1; i < len; i++){
+			if (1 == i % 2){
+				source[i] = Z[i/2];
+			} else {
+				source[i] = min(source[i],Z[i/2 - 1]);
+			}
+		}
+
+	} else if (0 == prefix){
+		//suffix minima
+		for (i = len - 2; i >= 0; i--){
+			if (0 == i % 2){
+				source[i] = Z[i/2];
+			} else {
+				source[i] = min(source[i],Z[i/2 + 1]);
+			}
+		}
+
+	} else {
+		//unrecognised prefix value
+		exit(1);
+	}
+}
+
+/* Sequential algorithm invocation */
+void seq_function(int n){
+
+	//prefix minima
+	scan_seq(B, n, 1);
+
+	#ifdef OUTPUT
+		printf("Prefix minima: ");
+		print_array(B, n);
+	#endif
+
+	//B reinitialization
+	init(n);
+
+	//suffix minima
+	scan_seq(B, n, 0);
+
+	#ifdef OUTPUT
+		printf("Suffix minima: ");
+		print_array(B, n);
+	#endif
+	
+}
+
+/* Parallel algorithm invocation */
+void *par_function(void* a){
+
+	pthread_barrier_wait(&barr);
+	//pthread_barrier_wait(&internal_barr);
+
+	tThreadArg *thread_data;
+
+	thread_data = (tThreadArg *)a;
+
+	// printf("Id: %d\n", thread_data->id);
+	// printf("NrT: %d\n", thread_data->nrT);
+	// printf("N: %d\n", thread_data->n);
+	//prefix minima
+	//scan_par(B, *n, 1);
+
+	// #ifdef OUTPUT
+	// 	printf("Prefix: ");
+	// 	// print_array(B, thread_data.n);
+	// #endif	
+
+	//reinitialization of B
+	//init(*n);
+
+	//suffix minima 
+	//scan_par(B, *n, 0);
+
+	// #ifdef OUTPUT
+	// 	printf("Suffix: ");
+	// 	// print_array(B, thread_data.n);
+	// #endif	
+	//printf("Test2\n");
+	return NULL;	
 }
 
 /* Runs the program */
@@ -279,15 +350,11 @@ int main (int argc, char *argv[])
 	void *status;
 	pthread_attr_t attr;
 	tThreadArg x[NUM_THREADS];
-	
+
+	set_stack_size(STACK_SIZE_MB);
+
 	result.tv_sec = 0;
 	result.tv_usec= 0;
-
-	/* Generate a seed input */
-	// srand ( time(NULL) );
-	// for(k=0; k<NMAX; k++){
-	// 	A[k] = rand();
-	// }
 
 	if (argc < 2){
 		printf("Please specify the data file\n");
@@ -305,15 +372,17 @@ int main (int argc, char *argv[])
 	// for each input size
 	for(c = 0; c < NSIZE; c++){
 		n=Ns[c];
-		printf("| %d | %d |",n,TIMES);
+		printf("| %d | %d |", n, TIMES);
 
 		/* Run sequential algorithm */
 		result.tv_usec=0;
 		gettimeofday (&startt, NULL);
+
 		for (t = 0; t < TIMES; t++) {
 			init(n);
-			seq_function(length);
+			seq_function(n);
 		}
+
 		gettimeofday (&endt, NULL);
 		result.tv_usec = (endt.tv_sec*1000000+endt.tv_usec) - (startt.tv_sec*1000000+startt.tv_usec);
 		printf(" %ld.%06ld | ", result.tv_usec/1000000, result.tv_usec%1000000);
@@ -330,9 +399,8 @@ int main (int argc, char *argv[])
 				printf("Could not create a barrier\n");
 				return -1;
 			}
-			printf("test\n");
 			result.tv_sec=0; result.tv_usec=0;
-			for (j=1; j<=/*NUMTHRDS*/nt; j++)
+			for (j = 1; j <= nt; j++)
 			{
 				x[j].id = j; 
 				x[j].nrT=nt; // number of threads in this round
@@ -341,7 +409,7 @@ int main (int argc, char *argv[])
 			}
 
 			gettimeofday (&startt, NULL);
-			for (t=0; t<TIMES; t++) 
+			for (t = 0; t < TIMES; t++) 
 			{
 				init(n);
 				pthread_barrier_wait(&barr);
@@ -349,7 +417,7 @@ int main (int argc, char *argv[])
 			gettimeofday (&endt, NULL);
 
 			/* Wait on the other threads */
-			for(j=0; j</*NUMTHRDS*/nt; j++)
+			for(j = 0; j < nt; j++)
 			{
 				pthread_join(callThd[j], &status);
 			}
