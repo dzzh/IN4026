@@ -14,7 +14,7 @@
 #define CHUNK_SIZE 10
 
 // Number of iterations
-#define TIMES 1
+#define TIMES 3
 
 // Input Size
 #define NSIZE 7
@@ -310,35 +310,33 @@ void seq_function(int n){
 /* Parallel algorithm invocation */
 void *par_function(void* a){
 
-	pthread_barrier_wait(&barr);
-	//pthread_barrier_wait(&internal_barr);
-
 	tThreadArg *thread_data;
+	int i;
 
-	thread_data = (tThreadArg *)a;
+	for (i = 0; i < TIMES; i++){
+		pthread_barrier_wait(&barr);
+		thread_data = (tThreadArg *)a;
 
-	// printf("Id: %d\n", thread_data->id);
-	// printf("NrT: %d\n", thread_data->nrT);
-	// printf("N: %d\n", thread_data->n);
-	//prefix minima
-	//scan_par(B, *n, 1);
+		//prefix minima
+		//scan_par(B, thread_data->n, 1);
 
-	// #ifdef OUTPUT
-	// 	printf("Prefix: ");
-	// 	// print_array(B, thread_data.n);
-	// #endif	
+		#ifdef OUTPUT
+			printf("Prefix: ");
+			print_array(B, thread_data->n);
+		#endif	
 
-	//reinitialization of B
-	//init(*n);
+		//reinitialization of B
+		init(thread_data->n);
 
-	//suffix minima 
-	//scan_par(B, *n, 0);
+		//suffix minima 
+		//scan_par(B, thread_data->n, 0);
 
-	// #ifdef OUTPUT
-	// 	printf("Suffix: ");
-	// 	// print_array(B, thread_data.n);
-	// #endif	
-	//printf("Test2\n");
+		#ifdef OUTPUT
+			printf("Suffix: ");
+			print_array(B, thread_data->n);
+		#endif	
+	}
+
 	return NULL;	
 }
 
@@ -389,19 +387,16 @@ int main (int argc, char *argv[])
 
 		/* Run threaded algorithm(s) */
 		for(nt = 1; nt < NUM_THREADS; nt = nt << 1){
-			if(pthread_barrier_init(&barr, NULL, nt+1))
-			{
+			if(pthread_barrier_init(&barr, NULL, nt+1)){
 				printf("Could not create a barrier\n");
 				return -1;
 			}
-			if(pthread_barrier_init(&internal_barr, NULL, nt))
-			{
+			if(pthread_barrier_init(&internal_barr, NULL, nt)){
 				printf("Could not create a barrier\n");
 				return -1;
 			}
 			result.tv_sec=0; result.tv_usec=0;
-			for (j = 1; j <= nt; j++)
-			{
+			for (j = 1; j <= nt; j++){
 				x[j].id = j; 
 				x[j].nrT=nt; // number of threads in this round
 				x[j].n=n;  //input size
@@ -409,8 +404,7 @@ int main (int argc, char *argv[])
 			}
 
 			gettimeofday (&startt, NULL);
-			for (t = 0; t < TIMES; t++) 
-			{
+			for (t = 0; t < TIMES; t++){
 				init(n);
 				pthread_barrier_wait(&barr);
 			}
