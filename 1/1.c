@@ -73,6 +73,9 @@ FILE *input;
 //input length
 int length;
 
+//recommended minimum number of operations for the thread
+int thread_ops;
+
 /*
  * Utility functions
  */
@@ -156,7 +159,7 @@ int get_optimal_threads_number(int max, int n) {
 
 	opt = max;
 
-	while (opt * THREAD_OPS > n && opt > 1) {
+	while (opt * thread_ops > n && opt > 1) {
 		opt /= 2;
 	}
 
@@ -450,6 +453,13 @@ int main (int argc, char *argv[]) {
 
 	/* Read seed input from the file */
 	read_file(argv[1]);
+
+	//setting recommended minimum number of thread operations
+	if (3 == argc){
+		thread_ops == (int)argv[2];
+	} else {
+		thread_ops = THREAD_OPS;
+	}
 
 	/* Initialize and set thread detached attribute */
 	pthread_attr_init(&attr);
