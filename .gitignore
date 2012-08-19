@@ -16,3 +16,12 @@
 
 #Executables
 1/1
+
+#Latex generator garbage
+*.aux
+*.fdb_latexmk
+*.log
+*.out
+report/*.pdf
+*.synctex.gz
+
