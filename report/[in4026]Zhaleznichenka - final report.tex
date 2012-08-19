@@ -40,6 +40,12 @@ D.V.Zhaleznichenka@student.tudelft.nl}
 
 \subsection{Introduction}
 
+In the first assignment it was required to devise an efficient algorithm computing prefix and suffix minimas for the given array\footnote{Given an array \(A = (a_1, . . . , a_N)\) with elements drawn from a linear ordered set. The suffix minima problem is to determine \(min\{a_i, a_{i+1}, . . . a_N\}\) for each $i$. The prefix minima are \(min\{a_1, a_2, . . . a_i\}\) for each $i$.}. 
+
+Despite it is easy to compute prefix/suffix minimas sequentially with \(T = O(N)\), we want to find an algorithm that would have better performance in the parallel setup as the performance of the sequential solution for the large data sets is not satisfactory.
+
+The algorithm idea was found at Wikipedia page explaining prefix sums\footnote{$http://en.wikipedia.org/wiki/Prefix\_sum$}. The algorithm is recursive and consists of three steps. First of all, we compute the minimas of consecutive pairs of items in which the first item of the pair has an even index and store them in a separate array. Secondly, we recursively compute the minimas for the obtained array. At the last step, we expand the computed sequence with the help of the source array. Here, each element is either directly copied from the previously computed sequence or is calculated using the element in the source array and a partial minima from the previously computed sequence. The first and the third steps in this algorithm can be parallelized easily.
+
 \subsection{Algorithm proof}
 
 \subsection{Time-complexity analysis}

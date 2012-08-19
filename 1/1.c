@@ -36,6 +36,10 @@
 //Performs sequential computations
 #define SEQUENTIAL
 
+//Use OpenMP optimizations to improve 
+//the performance of the sequential solution
+#define OPENMP
+
 //Performs parallel computations
 #define PARALLEL
 
@@ -183,10 +187,12 @@ void scan_seq(int* source, int len, int prefix) {
 	#endif
 
 	//computing sums of consequitive pairs of items
-	#pragma omp parallel for \
-	shared (Z, source, chunk, num_threads) private (i) \
-	schedule (static, chunk) \
-	num_threads (num_threads)
+	#ifdef OPENMP	
+		#pragma omp parallel for \
+		shared (Z, source, chunk, num_threads) private (i) \
+		schedule (static, chunk) \
+		num_threads (num_threads)
+	#endif
 
 	for (i = 0; i < len; i++) {
 		if (0 == i % 2) {
@@ -205,10 +211,12 @@ void scan_seq(int* source, int len, int prefix) {
 	//filling in the odd values from the obtained array
 	if (1 == prefix) {
 		//prefix minima
-		#pragma omp parallel for \
-		shared (Z, source, chunk, num_threads) private (i) \
-		schedule (static, chunk) \
-		num_threads (num_threads)
+		#ifdef OPENMP
+			#pragma omp parallel for \
+			shared (Z, source, chunk, num_threads) private (i) \
+			schedule (static, chunk) \
+			num_threads (num_threads)
+		#endif
 
 		for (i = 1; i < len; i++) {
 			if (1 == i % 2) {
@@ -220,10 +228,12 @@ void scan_seq(int* source, int len, int prefix) {
 
 	} else if (0 == prefix) {
 		//suffix minima
-		#pragma omp parallel for \
-		shared (Z, source, chunk, num_threads) private (i) \
-		schedule (static, chunk) \
-		num_threads (num_threads)
+		#ifdef OPENMP
+			#pragma omp parallel for \
+			shared (Z, source, chunk, num_threads) private (i) \
+			schedule (static, chunk) \
+			num_threads (num_threads)
+		#endif
 
 		for (i = len - 2; i >= 0; i--) {
 			if (0 == i % 2) {
