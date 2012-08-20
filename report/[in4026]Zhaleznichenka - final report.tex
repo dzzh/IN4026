@@ -78,7 +78,32 @@ The time-work calculations here were done for the prefix minima problem. The com
 
 \subsection{Implementation}
 
+The algorithm reads source data from the file. The output of the results is suppressed but it can be enabled with the help of the preprocessor directive. The algorithm was tested with the sequence suggested in the task description (file base.test), increasing sequence (inc.test) and decreasing sequence (dec.test). To do the performance tests described in the following section, a generated test file bigdata.test containing an array with 262144 elements was used. The data generator is written in Python and can be found in datagen.py file.
 
+The sequential implementation of the algorithm is straightforward and is based on pseudocode provided in the previous section. The function \lstinline{scan_seq()} accepts the source array, its length and prefix value as the parameters. The prefix value is needed to distinguish between prefix and suffix minima computations. 
+
+The sequential implementation contains three OpenMP directives needed to parallelize the work-intensive parts of the algorithm. To parallelize the first step of the algorithm we need in one pragma and to parallelilize the third step we use two pragmas, one for prefix computations and one for suffix computations. All the pragmas have the following structure.
+
+\begin{lstlisting}
+#pragma omp parallel for \
+	shared (Z, source, chunk, num_threads) private (i) \
+	schedule (static, chunk) \
+	num_threads (num_threads)
+\end{lstlisting}
+
+In each round of computations, \lstinline{scan_seq()} function is invoked twice, once for prefix computations and once for suffix computations. Though it is possible to compute both prefixes and suffixes in one round we have decided to split the computations as according to the requirements both resulting arrays should be stored in array $B$. Thus, we have to reinitialize array $B$ between the computations. This is done in the function \lstinline{seq_function()}. While doing performance tests, we measure the execution time of this function.
+
+The threaded version of the algorithm is organized the same way. We have a function \lstinline{par_function()} that calls \lstinline{scan_par()} function twice and reinitializes $B$ in between. All the computations are performed in \lstinline{scan_par()} function. 
+
+We have rewritten the code of \lstinline{main()} function to move the pthreads-related code from it to \lstinline{scan_par()} function. We think that our implementation of the threaded version required such a change. 
+
+As we did it with the OpenMP part, we have parallelized the first and the third steps of the algorithm. The first step is implemented in function \lstinline{par_sum()}, the third is implemented in function \lstinline{par_odd}. At each recursion step, we create the required number of threads in the main thread executing the code of \lstinline{scan_par()} function, wait for the completion of the first step, destroy the threads and go deeper. When the recursion is over and we get back, we create the new threads, wait for the completion of the third step and destroy the threads. Here, we stick to the boss-worker threading model.
+
+With this solution, we have an additional overhead due to the need to create and destroy the worker threads in each recursion step. It would make more sense to create the threads pool only once and feed them with the new parameters when needed. However, we were not able to implement the thread pool correctly with pthreads framework.
+
+We have tried to optimize the creation of threads by limiting their number for non-intensive operations. At the last steps of recursion, when there are only several values to compute, it is cheaper not to create many threads for this task, but to assign all the tasks to one thread only, or to the small number of threads. The logic of this improvement is implemented in \lstinline{get_optimal_threads_number()} function. However, it turned out that this optimization didn't lead to the significant improvement as the largest part of the work is done when all the threads are processing big tasks, and the final recursion steps can be computed rather quickly using any number of threads. But this optimization was helpful anyway as we needed to limit the number of threads for the situations with less values than threads.   
+
+In our solution, at each recursion step, the problem space is divided into subspaces that are assigned to the worker threads. Each thread computes a fixed amount of $N/nrT$ values. The subspaces do not overlap, thus it is safe for the threads to read and write needed values concurrently.
 
 \subsection{Tests}
 

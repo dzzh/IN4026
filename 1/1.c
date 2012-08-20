@@ -16,19 +16,23 @@
 #define THREAD_OPS 128
 
 //OpenMP chunk size
-#define CHUNK_SIZE 10
+#define CHUNK_SIZE 128
 
 // Number of iterations
-#define TIMES 3
+#define TIMES 10
 
 // Input Size
+//#define NSIZE 1
 #define NSIZE 7
 #define NMAX 262144
 
 #define STACK_SIZE_MB 2
 
-//Prints results to standart output
+//Prints resulting arrays to standart output
 //#define OUTPUT
+
+//Prints performance tests results to standard output
+#define PERFORMANCE
 
 //Prints debug data
 //#define DEBUG
@@ -36,7 +40,7 @@
 //Performs sequential computations
 #define SEQUENTIAL
 
-//Use OpenMP optimizations to improve 
+//Uses OpenMP optimizations to improve 
 //the performance of the sequential solution
 #define OPENMP
 
@@ -45,7 +49,6 @@
 
 int Ns[NSIZE] = {4096, 8192, 16384, 32768, 65536, 131072, 262144};
 //int Ns[NSIZE] = {32, 64, 128, 256, 512, 1024, 2048};
-//int Ns[NSIZE] = {32};
 
 typedef struct __ThreadArg {
 	int id;
@@ -127,7 +130,6 @@ void read_file(char* file) {
 	}
 
 	length = i;
-	printf("Length: %d\n", length);
 	fclose(input);
 }
 
@@ -374,10 +376,10 @@ void scan_par(int* source, int len, int nt, int prefix) {
 	//recursively computes prefix/suffix sums of obtained sequence Z
 	scan_par(Z, len / 2, nt, prefix);
 
-#ifdef DEBUG
-	printf("Z done: ");
-	print_array(Z, len / 2);
-#endif
+	#ifdef DEBUG
+		printf("Z done: ");
+		print_array(Z, len / 2);
+	#endif
 
 	//filling in odd values
 	for (j = 1; j <= opt; j++) {
@@ -397,10 +399,10 @@ void seq_function(int n) {
 	//prefix minima
 	scan_seq(B, n, 1);
 
-#ifdef OUTPUT
-	printf("\nPrefix minima: ");
-	print_array(B, n);
-#endif
+	#ifdef OUTPUT
+		printf("\nPrefix minima: ");
+		print_array(B, n);
+	#endif
 
 	//B reinitialization
 	init(n);
@@ -408,10 +410,10 @@ void seq_function(int n) {
 	//suffix minima
 	scan_seq(B, n, 0);
 
-#ifdef OUTPUT
-	printf("Suffix minima: ");
-	print_array(B, n);
-#endif
+	#ifdef OUTPUT
+		printf("Suffix minima: ");
+		print_array(B, n);
+	#endif
 }
 
 /* Parallel algorithm invocation
@@ -422,10 +424,10 @@ void par_function(int n, int nt) {
 	//prefix minima
 	scan_par(B, n, nt, 1);
 
-#ifdef OUTPUT
-	printf("\nPrefix: ");
-	print_array(B, n);
-#endif
+	#ifdef OUTPUT
+		printf("\nPrefix minima: ");
+		print_array(B, n);
+	#endif
 
 	//reinitialization of B
 	init(n);
@@ -433,10 +435,10 @@ void par_function(int n, int nt) {
 	//suffix minima
 	scan_par(B, n, nt, 0);
 
-#ifdef OUTPUT
-	printf("Suffix: ");
-	print_array(B, n);
-#endif
+	#ifdef OUTPUT
+		printf("Suffix minima: ");
+		print_array(B, n);
+	#endif
 }
 
 /* Runs the program */
@@ -465,74 +467,62 @@ int main (int argc, char *argv[]) {
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	printf("|NSize|Iterations|Seq|Th01|Th02|Th04|Th08|Par16|\n");
+	#ifdef PERFORMANCE
+		printf("┌────────┬────┬──────────┬───────────┬───────────┬───────────┬───────────┬───────────┐\n");
+		printf("│ NSize  │Iter│Sequential│    Th01   │    Th02   │    Th04   │    Th08   │   Par16   │\n");
+		printf("├────────┼────┼──────────┼───────────┼───────────┼───────────┼───────────┼───────────┤\n");
+	#endif
 
 	// for each input size
 	for(c = 0; c < NSIZE; c++) {
 		n = Ns[c];
-		printf("| %d | %d |", n, TIMES);
+		#ifdef PERFORMANCE
+			printf("│ %6d │ %d │", n, TIMES);
+		#endif		
 		/* Run sequential algorithm */
 		result.tv_usec = 0;
 		gettimeofday (&startt, NULL);
 
-#ifdef SEQUENTIAL
-
-		for (t = 0; t < TIMES; t++) {
-			init(n);
-			seq_function(n);
-		}
-
-#endif
+		#ifdef SEQUENTIAL
+			for (t = 0; t < TIMES; t++) {
+				init(n);
+				seq_function(n);
+			}
+		#endif
 
 		gettimeofday (&endt, NULL);
 		result.tv_usec = (endt.tv_sec * 1000000 + endt.tv_usec) - (startt.tv_sec * 1000000 + startt.tv_usec);
-		printf(" %ld.%06ld | ", result.tv_usec / 1000000, result.tv_usec % 1000000);
+
+		#ifdef PERFORMANCE
+			printf(" %ld.%06ld │ ", result.tv_usec / 1000000, result.tv_usec % 1000000);
+		#endif
 
 		/* Run threaded algorithm(s) */
-
-		// if(pthread_barrier_init(&barr, NULL, nt + 1)) {
-		// 	printf("Could not create a barrier\n");
-		// 	return -1;
-		// }
-
-		// if(pthread_barrier_init(&internal_barr, NULL, nt)) {
-		// 	printf("Could not create a barrier\n");
-		// 	return -1;
-		// }
-
 		for(nt = 1; nt < NUM_THREADS; nt = nt << 1) {
 			result.tv_sec = 0;
 			result.tv_usec = 0;
 			gettimeofday (&startt, NULL);
 
-#ifdef PARALLEL
-
-			for (t = 0; t < TIMES; t++) {
-				init(n);
-				par_function(n, nt);
-			}
-
-#endif
+			#ifdef PARALLEL
+				for (t = 0; t < TIMES; t++) {
+					init(n);
+					par_function(n, nt);
+				}	
+			#endif
 
 			gettimeofday (&endt, NULL);
 			result.tv_usec += (endt.tv_sec * 1000000 + endt.tv_usec) -
 			                  (startt.tv_sec * 1000000 + startt.tv_usec);
-			printf(" %ld.%06ld | ", result.tv_usec / 1000000,
+			#ifdef PERFORMANCE			                  
+				printf(" %ld.%06ld │ ", result.tv_usec / 1000000,
 			       result.tv_usec % 1000000);
+			#endif
 		}
 
-		// if (pthread_barrier_destroy(&barr)) {
-		// 	printf("Could not destroy the barrier\n");
-		// 	return -1;
-		// }
-
-		// if (pthread_barrier_destroy(&internal_barr)) {
-		// 	printf("Could not destroy the barrier\n");
-		// 	return -1;
-		// }
-
-		printf("\n");
+			printf("\n");
+		
 	}
-
-	pthread_exit(NULL);
+	#ifdef PERFORMANCE			                  
+		printf("└────────┴────┴──────────┴───────────┴───────────┴───────────┴───────────┴───────────┘\n");	
+	#endif	
 }
