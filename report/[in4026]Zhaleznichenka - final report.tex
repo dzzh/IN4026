@@ -42,15 +42,43 @@ D.V.Zhaleznichenka@student.tudelft.nl}
 
 In the first assignment it was required to devise an efficient algorithm computing prefix and suffix minimas for the given array\footnote{Given an array \(A = (a_1, . . . , a_N)\) with elements drawn from a linear ordered set. The suffix minima problem is to determine \(min\{a_i, a_{i+1}, . . . a_N\}\) for each $i$. The prefix minima are \(min\{a_1, a_2, . . . a_i\}\) for each $i$.}. 
 
-Despite it is easy to compute prefix/suffix minimas sequentially with \(T = O(N)\), we want to find an algorithm that would have better performance in the parallel setup as the performance of the sequential solution for the large data sets is not satisfactory.
+Despite it is easy to compute prefix/suffix minimas sequentially with \(T = O(N)\), it was required to find an algorithm that would have better performance in the parallel setup as the performance of the sequential solution for the large data sets is not satisfactory.
 
-The algorithm idea was found at Wikipedia page explaining prefix sums\footnote{$http://en.wikipedia.org/wiki/Prefix\_sum$}. The algorithm is recursive and consists of three steps. First of all, we compute the minimas of consecutive pairs of items in which the first item of the pair has an even index and store them in a separate array. Secondly, we recursively compute the minimas for the obtained array. At the last step, we expand the computed sequence with the help of the source array. Here, each element is either directly copied from the previously computed sequence or is calculated using the element in the source array and a partial minima from the previously computed sequence. The first and the third steps in this algorithm can be parallelized easily.
+The algorithm idea was found at Wikipedia page explaining prefix sums\footnote{$http://en.wikipedia.org/wiki/Prefix\_sum$}. The algorithm is recursive and consists of three steps. First of all, we compute the minimas of consecutive pairs of items in which the first item of the pair has an even index and store them in a separate array. Secondly, we recursively compute the minimas for the obtained array. At the last step, we expand the computed sequence with the help of the source array. Here, each element is either directly copied from the previously computed sequence or is calculated using the element in the source array and a partial minima from the previously computed sequence. The first and the third steps in this algorithm can be parallelized easily. The second step of the algorithm is the recursive call that eventually expands into a series of the first and the third steps, thus not being a bottleneck of the algorithm. 
 
 \subsection{Algorithm proof}
 
+The recursion is performed in two steps. In the first step for several times we discard from the original sequence half of its elements. We do it in such a way that all the remaining elements are the least in the consequent element pairs of the source seqence. We reduce the sequence until only one element remains in it. By design, this element is the minima of the sequence. 
+
+After we find the minimal element, we expand the sequence back. At each recursion step up to the original sequence for each element in the source sequence we get a local minima, i.e. the minima of preceeding sequence (for prefix minima problem) or the minima of the subsequent sequence (for suffix minima problem). To find out the element that should be placed in a prefix/suffix minima sequence instead of the original element, we compare the original element with the local minima and select the smallest element for odd values or just take the local minima for the even values, as the local minima already concerns the original element in this case. 
+
 \subsection{Time-complexity analysis}
 
+The time-work calculations here were done for the prefix minima problem. The computational complexity of the suffix minima problem is the same.
+
+\begin{lstlisting}
+
+//prefix(A, N) - find prefix minima for array A of size N
+//input:  array A[0..N-1]
+//output: array B[0..N-1] array of prefix minimas for A
+
+1.  for 0 < i < N pardo //W = O(N), T = O(1)
+		if i is even then Z[i/2] = min(A[i],A[i+1])
+
+2.  Z = prefix(Z, N/2)		//W = W(N/2), T = T(N/2)
+
+3.  for 1 < i < N pardo //W = O(N), T = O(1)
+		if i is odd then B[i] = Z[i/2]
+		else B[i] = min(A[i], Z[i/2-1])
+
+//T(N) = T(N/2) + O(1) = O(log n)
+//W(N) = W(N/2) + O(N) = O(N)		
+	
+\end{lstlisting}
+
 \subsection{Implementation}
+
+
 
 \subsection{Tests}
 
