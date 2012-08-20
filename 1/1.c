@@ -34,6 +34,9 @@
 //Prints performance tests results to standard output
 #define PERFORMANCE
 
+//Prints speedup instead of execution time in performance tests
+#define SPEEDUP
+
 //Prints debug data
 //#define DEBUG
 
@@ -167,6 +170,10 @@ int get_optimal_threads_number(int max, int n) {
 
 	return opt;
 }
+
+/*
+ * Algortihm implementations
+ */
 
 /* Sequential recursive algorithm to solve prefix/suffix minima problem for
  * given array enhanced with OpenMP pragmas to share the worlkload.
@@ -393,6 +400,10 @@ void scan_par(int* source, int len, int nt, int prefix) {
 
 }
 
+/*
+ * Algortihm invocations
+ */
+
 /* Sequential algorithm invocation
    n - number of elements */
 void seq_function(int n) {
@@ -445,6 +456,7 @@ void par_function(int n, int nt) {
 int main (int argc, char *argv[]) {
 	struct timeval startt, endt, result;
 	int k, nt, t, n, c;
+	double seqt, speedupt;
 	set_stack_size(STACK_SIZE_MB);
 	result.tv_sec = 0;
 	result.tv_usec = 0;
@@ -468,7 +480,15 @@ int main (int argc, char *argv[]) {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
 	#ifdef PERFORMANCE
-		printf("┌────────┬────┬──────────┬───────────┬───────────┬───────────┬───────────┬───────────┐\n");
+		printf("┌────────┐\n");		
+
+		#ifdef SPEEDUP
+			printf("│Speedup │\n");		
+		#else
+			printf("│  Time  │\n");		
+		#endif
+
+		printf("├────────┼────┬──────────┬───────────┬───────────┬───────────┬───────────┬───────────┐\n");
 		printf("│ NSize  │Iter│Sequential│    Th01   │    Th02   │    Th04   │    Th08   │   Par16   │\n");
 		printf("├────────┼────┼──────────┼───────────┼───────────┼───────────┼───────────┼───────────┤\n");
 	#endif
@@ -492,6 +512,7 @@ int main (int argc, char *argv[]) {
 
 		gettimeofday (&endt, NULL);
 		result.tv_usec = (endt.tv_sec * 1000000 + endt.tv_usec) - (startt.tv_sec * 1000000 + startt.tv_usec);
+		seqt = result.tv_usec;
 
 		#ifdef PERFORMANCE
 			printf(" %ld.%06ld │ ", result.tv_usec / 1000000, result.tv_usec % 1000000);
@@ -511,17 +532,24 @@ int main (int argc, char *argv[]) {
 			#endif
 
 			gettimeofday (&endt, NULL);
-			result.tv_usec += (endt.tv_sec * 1000000 + endt.tv_usec) -
-			                  (startt.tv_sec * 1000000 + startt.tv_usec);
-			#ifdef PERFORMANCE			                  
-				printf(" %ld.%06ld │ ", result.tv_usec / 1000000,
-			       result.tv_usec % 1000000);
+			result.tv_usec += (endt.tv_sec * 1000000 + endt.tv_usec) - (startt.tv_sec * 1000000 + startt.tv_usec);
+			#ifdef PERFORMANCE
+				#ifdef SPEEDUP			                  
+					if (0 == result.tv_usec){
+						speedupt = 0;
+					} else {
+						speedupt = seqt/result.tv_usec;	
+					}
+					printf(" %.06f │ ",speedupt);
+				#else
+					printf(" %ld.%06ld │ ", result.tv_usec / 1000000, result.tv_usec % 1000000);
+				#endif
 			#endif
 		}
 
-			printf("\n");
-		
+		printf("\n");
 	}
+
 	#ifdef PERFORMANCE			                  
 		printf("└────────┴────┴──────────┴───────────┴───────────┴───────────┴───────────┴───────────┘\n");	
 	#endif	
