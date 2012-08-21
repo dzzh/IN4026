@@ -13,7 +13,7 @@
 //Recommendation of least number of operations
 //performed by a thread to decrease thread creation overhead
 //for small tasks
-#define THREAD_OPS 128
+#define THREAD_OPS 32
 
 //OpenMP chunk size
 #define CHUNK_SIZE 128
@@ -24,9 +24,10 @@
 // Input Size
 //#define NSIZE 1
 #define NSIZE 7
-#define NMAX 262144
+#define NMAX 1048576
+#define NBORDER 10
 
-#define STACK_SIZE_MB 2
+#define STACK_SIZE_MB 16
 
 //Prints resulting arrays to standart output
 //#define OUTPUT
@@ -35,7 +36,7 @@
 #define PERFORMANCE
 
 //Prints speedup instead of execution time in performance tests
-#define SPEEDUP
+//#define SPEEDUP
 
 //Prints debug data
 //#define DEBUG
@@ -50,7 +51,13 @@
 //Performs parallel computations
 #define PARALLEL
 
-int Ns[NSIZE] = {4096, 8192, 16384, 32768, 65536, 131072, 262144};
+//Enables advanded array initialization ensuring
+//that the threads will be busy during all execution steps
+#define ADVANCED_INIT
+
+int Ns[NSIZE] = {16384, 32768, 65536, 131072, 262144, 524288, 1048576};
+//int Ns[NSIZE] = {8192, 16384, 32768, 65536, 131072, 262144, 524288};
+//int Ns[NSIZE] = {4096, 8192, 16384, 32768, 65536, 131072, 262144};
 //int Ns[NSIZE] = {32, 64, 128, 256, 512, 1024, 2048};
 
 typedef struct __ThreadArg {
@@ -68,7 +75,7 @@ pthread_attr_t attr;
 pthread_barrier_t barr, internal_barr;
 
 // Seed Input
-int A[NMAX];
+int A[NMAX+NBORDER];
 
 // Prefix/suffix subset
 int B[NMAX];
@@ -79,20 +86,34 @@ FILE *input;
 //input length
 int length;
 
-//recommended minimum number of operations for the thread
-int thread_ops;
-
 /*
  * Utility functions
  */
 
 /* Copies source data to target array for processing */
-void init(int n) {
-	int i;
+void init(int n, int prefix) {
+	int i,j;
 
-	for (i = 0; i < n; i++) {
-		B[i] = A[i];
-	}
+	#ifndef ADVANCED_INIT
+		for (i = 0; i < n; i++) {
+			B[i] = A[i];
+		}
+	#else
+		if (1 == prefix){
+			//prefix minima, discard first 10 values
+			for (i = 0; i < n - 10; i++) {
+				B[i] = A[i+10];
+			}
+			for (i = n - 10, j = 1; i < n; i++, j++) {
+				B[i] = A[n];
+			}
+		} else {
+			//suffix minima, discard last 10 values
+			for (i = 0; i < n; i++) {
+				B[i] = A[i];
+			}
+		}
+	#endif	
 }
 
 /* Prints given array in one row */
@@ -164,7 +185,7 @@ int get_optimal_threads_number(int max, int n) {
 
 	opt = max;
 
-	while (opt * thread_ops > n && opt > 1) {
+	while (opt * THREAD_OPS > n && opt > 1) {
 		opt /= 2;
 	}
 
@@ -416,7 +437,7 @@ void seq_function(int n) {
 	#endif
 
 	//B reinitialization
-	init(n);
+	init(n, 0);
 
 	//suffix minima
 	scan_seq(B, n, 0);
@@ -441,7 +462,7 @@ void par_function(int n, int nt) {
 	#endif
 
 	//reinitialization of B
-	init(n);
+	init(n, 0);
 
 	//suffix minima
 	scan_par(B, n, nt, 0);
@@ -467,13 +488,6 @@ int main (int argc, char *argv[]) {
 
 	/* Read seed input from the file */
 	read_file(argv[1]);
-
-	//setting recommended minimum number of thread operations
-	if (3 == argc){
-		thread_ops == (int)argv[2];
-	} else {
-		thread_ops = THREAD_OPS;
-	}
 
 	/* Initialize and set thread detached attribute */
 	pthread_attr_init(&attr);
@@ -505,7 +519,7 @@ int main (int argc, char *argv[]) {
 
 		#ifdef SEQUENTIAL
 			for (t = 0; t < TIMES; t++) {
-				init(n);
+				init(n, 1);
 				seq_function(n);
 			}
 		#endif
@@ -526,7 +540,7 @@ int main (int argc, char *argv[]) {
 
 			#ifdef PARALLEL
 				for (t = 0; t < TIMES; t++) {
-					init(n);
+					init(n, 1);
 					par_function(n, nt);
 				}	
 			#endif
